@@ -18,6 +18,10 @@ import (
     "os"
 
     "github.com/aws/aws-lambda-go/lambda"
+    "github.com/aws/aws-lambda-go/lambdacontext"
+    "github.com/aws/aws-sdk-go/aws"
+    "github.com/aws/aws-sdk-go/aws/session"
+    "github.com/aws/aws-sdk-go/service/cloudwatch"
     coinbasepro "github.com/preichenberger/go-coinbasepro/v2"
     "github.com/shopspring/decimal"
 )
@@ -32,6 +36,12 @@ type DepositInfo struct {
 
 func HandleRequest(ctx context.Context) (string, error) {
     client := coinbasepro.NewClient()
+
+    // Create new cloudwatch client.
+    sess := session.Must(session.NewSessionWithOptions(session.Options{
+        SharedConfigState: session.SharedConfigEnable,
+    }))
+    svc := cloudwatch.New(sess)
 
     log.Printf("Client initialized")
 
@@ -51,6 +61,40 @@ func HandleRequest(ctx context.Context) (string, error) {
     available, err := decimal.NewFromString(account.Available)
     if err != nil {
         return "", err
+    }
+
+    balanceF64, _ := balance.Float64()
+    availableF64, _ := available.Float64()
+    // Publish metric with balance and available
+    _, err = svc.PutMetricData(&cloudwatch.PutMetricDataInput{
+        Namespace: aws.String("HODL/Fiat"),
+        MetricData: []*cloudwatch.MetricDatum{
+            {
+                MetricName: aws.String("Balance"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(balanceF64),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+            {
+                MetricName: aws.String("Available"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(availableF64),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+        },
+    })
+    if err != nil {
+        log.Println("Error adding metrics:", err.Error())
     }
 
     threshold, err := decimal.NewFromString(os.Getenv("USD_THRESHOLD_TO_BUY"))
@@ -91,6 +135,39 @@ func HandleRequest(ctx context.Context) (string, error) {
         return "", nil
     }
 
+    // Publish metric with how much transfer was placed
+    _, err = svc.PutMetricData(&cloudwatch.PutMetricDataInput{
+        Namespace: aws.String("HODL/Fiat"),
+        MetricData: []*cloudwatch.MetricDatum{
+            {
+                MetricName: aws.String("Deposit Count"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(1.00),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+            {
+                MetricName: aws.String("Deposit Amount"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(transferAmountFloat64),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+        },
+    })
+    if err != nil {
+        log.Println("Error adding metrics:", err.Error())
+    }
+
+    log.Printf("Successully deposited money")
     return "Successully deposited money", nil
 }
 

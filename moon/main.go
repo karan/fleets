@@ -17,12 +17,22 @@ import (
     "os"
 
     "github.com/aws/aws-lambda-go/lambda"
+    "github.com/aws/aws-lambda-go/lambdacontext"
+    "github.com/aws/aws-sdk-go/aws"
+    "github.com/aws/aws-sdk-go/aws/session"
+    "github.com/aws/aws-sdk-go/service/cloudwatch"
     coinbasepro "github.com/preichenberger/go-coinbasepro/v2"
     "github.com/shopspring/decimal"
 )
 
 func HandleRequest(ctx context.Context) (string, error) {
     client := coinbasepro.NewClient()
+
+    // Create new cloudwatch client.
+    sess := session.Must(session.NewSessionWithOptions(session.Options{
+        SharedConfigState: session.SharedConfigEnable,
+    }))
+    svc := cloudwatch.New(sess)
 
     log.Printf("Client initialized")
 
@@ -47,6 +57,40 @@ func HandleRequest(ctx context.Context) (string, error) {
     threshold, err := decimal.NewFromString(os.Getenv("USD_BTC_BUY_AMOUNT"))
     if err != nil {
         return "", err
+    }
+
+    balanceF64, _ := balance.Float64()
+    availableF64, _ := available.Float64()
+    // Publish metric with balance and available
+    _, err = svc.PutMetricData(&cloudwatch.PutMetricDataInput{
+        Namespace: aws.String("HODL/Moon"),
+        MetricData: []*cloudwatch.MetricDatum{
+            {
+                MetricName: aws.String("Balance"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(balanceF64),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+            {
+                MetricName: aws.String("Available"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(availableF64),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+        },
+    })
+    if err != nil {
+        log.Println("Error adding metrics:", err.Error())
     }
 
     // Adding 5% fuzz factor for price fluctuations and float accuracy.
@@ -95,6 +139,41 @@ func HandleRequest(ctx context.Context) (string, error) {
 
     log.Printf("Order sent successfully %+v", savedOrder)
 
+    lastPriceF64, _ := lastPrice.Float64()
+    sizeDecimalF64, _ := sizeDecimal.Float64()
+    // Publish metric with balance and available
+    _, err = svc.PutMetricData(&cloudwatch.PutMetricDataInput{
+        Namespace: aws.String("HODL/Moon"),
+        MetricData: []*cloudwatch.MetricDatum{
+            {
+                MetricName: aws.String("BTC Last Price"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(lastPriceF64),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+            {
+                MetricName: aws.String("Order Size"),
+                Unit:       aws.String("Count"),
+                Value:      aws.Float64(sizeDecimalF64),
+                Dimensions: []*cloudwatch.Dimension{
+                    {
+                        Name:  aws.String("FunctionName"),
+                        Value: aws.String(lambdacontext.FunctionName),
+                    },
+                },
+            },
+        },
+    })
+    if err != nil {
+        log.Println("Error adding metrics:", err.Error())
+    }
+
+    log.Printf("Successully bought BTC")
     return "Successully bought BTC", nil
 }
 
