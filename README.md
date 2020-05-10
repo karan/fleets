@@ -40,4 +40,5 @@ Buys BTC if there's enough available cash in the account.
 
 ## Improvements
 
+* Make `fiat` run every day, and only deposit if there's not been a deposit in the last 7 days.
 * Make `moon` run every day, and only buy if there's not been a trade in the last 7 days.
