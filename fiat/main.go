@@ -4,10 +4,10 @@
 // - COINBASE_PRO_PASSPHRASE
 // - COINBASE_PRO_KEY
 // - COINBASE_PRO_SECRET
-// - COINBASE_USD_ACCOUNT_ID
-// - USD_THRESHOLD_TO_BUY
-// - COINBASE_PAYMENT_METHOD_ID
-// - USD_AMOUNT_TO_TRANSFER
+// - COINBASE_USD_ACCOUNT_ID (Account ID that holds USD in Coinbase)
+// - USD_THRESHOLD_TO_BUY (Minimum amount of money that must exist in the account)
+// - COINBASE_PAYMENT_METHOD_ID (Account ID for ACH bank account transfer)
+// - USD_AMOUNT_TO_TRANSFER (This much to transfer)
 
 package main
 
@@ -21,10 +21,6 @@ import (
     coinbasepro "github.com/preichenberger/go-coinbasepro/v2"
     "github.com/shopspring/decimal"
 )
-
-type MyEvent struct {
-    Name string `json:"name"`
-}
 
 // Monkey patch Deposit.
 type DepositInfo struct {
@@ -64,7 +60,7 @@ func HandleRequest(ctx context.Context) (string, error) {
 
     haveEnoughMoney := available.GreaterThan(threshold)
 
-    log.Printf("You balance is %s, and available %s, and threshold is %s, and do I have enough money? %t", balance.String(), available.String(), threshold.String(), haveEnoughMoney)
+    log.Printf("balance: %s, available: %s, threshold: %s, haveEnoughMoney: %t", balance.String(), available.String(), threshold.String(), haveEnoughMoney)
 
     if haveEnoughMoney {
         log.Printf("No need to buy more... BYEEE")
@@ -95,7 +91,7 @@ func HandleRequest(ctx context.Context) (string, error) {
         return "", nil
     }
 
-    return "SUCCESS", nil
+    return "Successully deposited money", nil
 }
 
 func main() {

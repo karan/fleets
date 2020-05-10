@@ -4,13 +4,15 @@
 // - COINBASE_PRO_PASSPHRASE
 // - COINBASE_PRO_KEY
 // - COINBASE_PRO_SECRET
-// - COINBASE_USD_ACCOUNT_ID
-// - USD_THRESHOLD_TO_BUY
+// - COINBASE_USD_ACCOUNT_ID (Account ID that holds USD in Coinbase)
+// - USD_BTC_BUY_AMOUNT (Buy this much $ of BTC)
 
 package main
 
 import (
     "context"
+    "errors"
+    "fmt"
     "log"
     "os"
 
@@ -42,18 +44,21 @@ func HandleRequest(ctx context.Context) (string, error) {
         return "", err
     }
 
-    threshold, err := decimal.NewFromString(os.Getenv("USD_THRESHOLD_TO_BUY"))
+    threshold, err := decimal.NewFromString(os.Getenv("USD_BTC_BUY_AMOUNT"))
     if err != nil {
         return "", err
     }
 
+    // Adding 5% fuzz factor for price fluctuations and float accuracy.
+    threshold = threshold.Mul(decimal.NewFromFloat(1.05))
+
     haveEnoughMoney := available.GreaterThan(threshold)
 
-    log.Printf("You balance is %s, and available %s, and threshold is %s, and do I have enough money? %t", balance.String(), available.String(), threshold.String(), haveEnoughMoney)
+    log.Printf("balance: %s, available: %s, threshold: %s, haveEnoughMoney: %t", balance.String(), available.String(), threshold.String(), haveEnoughMoney)
 
     if !haveEnoughMoney {
         log.Printf("I don't have enough money! Crashing...")
-        return "Did not have enough money", nil
+        return "", errors.New(fmt.Sprintf("Did not have enough money to buy. balance: %s, available: %s, threshold: %s", balance.String(), available.String(), threshold.String()))
     }
 
     // Place an order
@@ -62,17 +67,21 @@ func HandleRequest(ctx context.Context) (string, error) {
         return "", err
     }
 
+    log.Printf("Book: %+v", book)
+
     lastPrice, err := decimal.NewFromString(book.Bids[0].Price)
     if err != nil {
         return "", err
     }
+
+    log.Printf("Last price: %s", lastPrice.String())
 
     sizeDecimal := threshold.DivRound(lastPrice, 8)
 
     log.Printf("Buying %s BTC", sizeDecimal.String())
 
     order := coinbasepro.Order{
-        // Keep a $10 margin for spikes.
+        // Keep a $10 margin for spikes, otherwise this should be like Market.
         Price:     lastPrice.Add(decimal.NewFromFloat(10.00)).String(),
         Size:      sizeDecimal.String(),
         Side:      "buy",
@@ -86,7 +95,7 @@ func HandleRequest(ctx context.Context) (string, error) {
 
     log.Printf("Order sent successfully %+v", savedOrder)
 
-    return "SUCCESS", nil
+    return "Successully bought BTC", nil
 }
 
 func main() {
