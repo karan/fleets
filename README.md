@@ -22,4 +22,6 @@ Buys BTC
 
 3. Look at the `main.go` file of `fiat` and `moon` for the environment variables that need to be set on each function.
 
-4. 🚀To the moon 🚀
+4. For each function, run `deploy.sh`.
+
+5. 🚀To the moon 🚀
