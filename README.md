@@ -2,43 +2,52 @@
 
 🚀To the moon 🚀
 
-AWS Lambda functions to do DCA (Dollar Cost Averaging) for BTC (Bitcoin) on Coinbase Pro.
+DCA on BTC and ETH using Coinbase Pro.
 
-## Modules
+## How it works
 
-### fiat
+Depending on the schedule you set, this bot will:
 
-Deposits some USD using ACH. A bank account must exist in the Coinbase Account.
+- Read config file
+- Check if USDC account on cPro has enough balance to buy BTC and ETH
+  - If not enough, transfer USDC from Coinbase.
+  - NOTE: if Coinbase does not have enough balance, the script will fail!
+- Convert USDC to USD
+- Buy BTC-USD
+- Buy ETH-USD
+- (Optional) Ping healthcheck URLs
 
-### moon
-
-Buys BTC if there's enough available cash in the account.
+Note that if your Coinbase Pro account already has USD, it won't use it. It does not optimize for that.
 
 ## Setup
 
-1. Create an AWS account, and Coinbase Pro account. Add a bank account to the latter.
+1. Copy and create a `sandbox.env` and a `prod.env` from `template.env`. Look at comments for values.
 
-1. Create a [`lambda-role`](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html#permissions-executionrole-console). Copy the `Role ARN`.
+1. Set up recurring USDC purchases in Coinbase.com (not Pro). Make sure to always have enough in there. For example, if you're buying $20 of Crypto once a week, then make sure you always keep at least $20 of USDC in your Coinbase.com account.
 
-    ![](https://i.imgur.com/5GXf25X.png)
+## Build and Run
 
-1. Find out your Coinbase USD account ID and ACH bank payment method id (hint: look at the Developer Console).
+### Run
 
-1. Look at the `main.go` file of `fiat` and `moon` for the environment variables that need to be set on each function.
+Set `ENV_FILE_PATH` to the file that contains the env vars.
 
-1. For each function, modify `deploy.sh` with the Role ARN.
+```
+$ ENV_FILE_PATH=sandbox.env go run main.go
+```
 
-1. For each function, copy `sandbox.env.json.template` and create `sandbox.env.json` and `prod.env.json`. Fill in the values.
+## Build
 
-1. For each function, run `deploy.sh sandbox|prod`.
+Set `ENV_FILE_PATH` to the file that contains the env vars. Set `GOOS` to your target platform.
 
-1. For each, [create a schedule](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/RunLambdaSchedule.html). For `fiat`, I do every day, and for `moon`, I do once a week.
+```
+$ GOOS=linux go build -ldflags="-d -s -w" -o hodl main.go && chmod +x hodl
+$ ENV_FILE_PATH=sandbox.env ./hodl
+```
 
-1. 🚀To the moon 🚀
+## Cron
 
-![](https://i.imgur.com/h0nfgDi.png)
+You can use cron to run the script. Example to run it every other day:
 
-## Improvements
-
-* Make `fiat` run every day, and only deposit if there's not been a deposit in the last 7 days.
-* Make `moon` run every day, and only buy if there's not been a trade in the last 7 days.
+```
+*   *   */2   *   *   ENV_FILE_PATH=prod.env ./hodl
+```
