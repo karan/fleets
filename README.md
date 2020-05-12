@@ -49,5 +49,6 @@ $ ENV_FILE_PATH=sandbox.env ./hodl
 You can use cron to run the script. Example to run it every other day:
 
 ```
-*   *   */2   *   *   ENV_FILE_PATH=prod.env ./hodl
+DATEVAR=date +%Y-%m-%d
+0 * */2 * * ENV_FILE_PATH=/home/prod.env /home/hodl >> /home/cron-$($DATEVAR).log 2>&1
 ```
