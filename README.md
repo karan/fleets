@@ -52,3 +52,9 @@ You can use cron to run the script. Example to run it every other day:
 DATEVAR=date +%Y-%m-%d
 0 * */2 * * ENV_FILE_PATH=/home/prod.env /home/hodl >> /home/cron-$($DATEVAR).log 2>&1
 ```
+
+## TODO
+
+- [ ] When transferring, account for trading fees. If you start with 0 USD, then exact USDC won't be enough.
+
+- [ ] Optimize USD use by checking that too.
