@@ -2,6 +2,7 @@
 package main
 
 import (
+    "fmt"
     "log"
     "net/http"
     "net/url"
@@ -39,10 +40,14 @@ func getWhitelist() []string {
     return strings.Split(v, ":")
 }
 
-func getTimeline(api *anaconda.TwitterApi) ([]anaconda.Tweet, error) {
+func getTimeline(api *anaconda.TwitterApi, maxId string) ([]anaconda.Tweet, error) {
     args := url.Values{}
     args.Add("count", "200")        // Twitter only returns most recent 20 tweets by default, so override
     args.Add("include_rts", "true") // When using count argument, RTs are excluded, so include them as recommended
+    if len(maxId) > 0 {
+        args.Set("max_id", maxId)
+    }
+
     timeline, err := api.GetUserTimeline(args)
     if err != nil {
         log.Printf("error while getting timeline %+v", err)
@@ -51,9 +56,13 @@ func getTimeline(api *anaconda.TwitterApi) ([]anaconda.Tweet, error) {
     return timeline, nil
 }
 
-func getFaves(api *anaconda.TwitterApi) ([]anaconda.Tweet, error) {
+func getFaves(api *anaconda.TwitterApi, maxId string) ([]anaconda.Tweet, error) {
     args := url.Values{}
     args.Add("count", "200") // Twitter only returns most recent 20 tweets by default, so override
+    if len(maxId) > 0 {
+        args.Set("max_id", maxId)
+    }
+
     faves, err := api.GetFavorites(args)
     if err != nil {
         log.Printf("error while getting favorites %+v", err)
@@ -74,80 +83,89 @@ func isWhitelisted(id int64, text string) bool {
 }
 
 func deleteFromTimeline(api *anaconda.TwitterApi, ageLimit time.Duration) error {
-    timeline, err := getTimeline(api)
-    if err != nil {
-        log.Print("could not get timeline", err)
-        return err
-    }
-    log.Printf("timeline length %d", len(timeline))
-
     deletedCount := 0
+    maxId := ""
 
-    for _, t := range timeline {
-        createdTime, err := t.CreatedAtTime()
+    for i := 1; i <= 10; i++ {
+        timeline, err := getTimeline(api, maxId)
         if err != nil {
-            log.Print("could not parse time ", err)
+            log.Print("could not get timeline", err)
             return err
-        } else {
-            if time.Since(createdTime) > ageLimit && !isWhitelisted(t.Id, t.Text) {
-                deletedCount += 1
-                var err error
-                if t.Retweeted {
-                    log.Printf("UNRETWEETING TWEET (was %vh old): %v #%d - %s\n", time.Since(createdTime).Hours(), createdTime, t.Id, t.Text)
-                    if !dryRun {
-                        _, err = api.UnRetweet(t.Id, true)
-                        time.Sleep(2 * time.Second)
-                    }
-                } else if !t.Favorited {
-                    log.Printf("DELETING TWEET (was %vh old): %v #%d - %s\n", time.Since(createdTime).Hours(), createdTime, t.Id, t.Text)
-                    if !dryRun {
-                        _, err = api.DeleteTweet(t.Id, true)
-                        time.Sleep(2 * time.Second)
-                    }
-                }
+        }
+        log.Printf("timeline length %d", len(timeline))
 
-                if err != nil {
-                    log.Print("failed to clean up: ", err)
-                    return err
+        for _, t := range timeline {
+            createdTime, err := t.CreatedAtTime()
+            if err != nil {
+                log.Print("could not parse time ", err)
+                return err
+            } else {
+                if time.Since(createdTime) > ageLimit && !isWhitelisted(t.Id, t.Text) {
+                    deletedCount += 1
+                    var err error
+                    if t.Retweeted {
+                        log.Printf("UNRETWEETING TWEET (was %vh old): %v #%d - %s\n", time.Since(createdTime).Hours(), createdTime, t.Id, t.Text)
+                        if !dryRun {
+                            _, err = api.UnRetweet(t.Id, true)
+                            time.Sleep(2 * time.Second)
+                        }
+                    } else if !t.Favorited {
+                        log.Printf("DELETING TWEET (was %vh old): %v #%d - %s\n", time.Since(createdTime).Hours(), createdTime, t.Id, t.Text)
+                        if !dryRun {
+                            _, err = api.DeleteTweet(t.Id, true)
+                            time.Sleep(2 * time.Second)
+                        }
+                    }
+
+                    if err != nil {
+                        log.Print("failed to clean up: ", err)
+                        return err
+                    }
                 }
             }
+            maxId = fmt.Sprintf("%d", t.Id)
         }
     }
+
     log.Printf("=====>>> deleted %d tweets", deletedCount)
     return nil
 }
 
 func unFavorite(api *anaconda.TwitterApi, ageLimit time.Duration) error {
-    faves, err := getFaves(api)
-    if err != nil {
-        log.Print("could not get favorites", err)
-        return err
-    }
-    log.Printf("favorites length %d", len(faves))
-
     deletedCount := 0
+    maxId := ""
 
-    for _, t := range faves {
-        createdTime, err := t.CreatedAtTime()
+    for i := 1; i <= 10; i++ {
+        faves, err := getFaves(api, maxId)
         if err != nil {
-            log.Print("could not parse time ", err)
+            log.Print("could not get favorites", err)
             return err
-        } else {
-            if time.Since(createdTime) > ageLimit && !isWhitelisted(t.Id, t.Text) {
-                deletedCount += 1
-                var err error
-                if t.Favorited {
-                    log.Printf("UNFAVORITING TWEET (was %vh old): %v #%d - %s\n", time.Since(createdTime).Hours(), createdTime, t.Id, t.Text)
-                    if !dryRun {
-                        _, err = api.Unfavorite(t.Id)
-                        time.Sleep(2 * time.Second)
+        }
+        log.Printf("favorites length %d", len(faves))
+
+        for _, t := range faves {
+            createdTime, err := t.CreatedAtTime()
+            if err != nil {
+                log.Print("could not parse time ", err)
+                return err
+            } else {
+                if time.Since(createdTime) > ageLimit && !isWhitelisted(t.Id, t.Text) {
+                    deletedCount += 1
+                    var err error
+                    if t.Favorited {
+                        log.Printf("UNFAVORITING TWEET (was %vh old): %v #%d - %s\n", time.Since(createdTime).Hours(), createdTime, t.Id, t.Text)
+                        if !dryRun {
+                            _, err = api.Unfavorite(t.Id)
+                            time.Sleep(2 * time.Second)
+                        }
+                    }
+                    if err != nil {
+                        log.Print("failed to clean up: ", err)
+                        return err
                     }
                 }
-                if err != nil {
-                    log.Print("failed to clean up: ", err)
-                    return err
-                }
             }
+            maxId = fmt.Sprintf("%d", t.Id)
         }
     }
     log.Printf("=====>>> unfavorited %d tweets", deletedCount)
