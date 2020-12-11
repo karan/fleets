@@ -1,4 +1,4 @@
-module github.com/karan/hodl
+module github.com/karan/fleets
 
 go 1.14
 
