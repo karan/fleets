@@ -162,7 +162,7 @@ func unFavorite(api *anaconda.TwitterApi, ageLimit time.Duration) error {
                     if err != nil {
                         if err, ok := err.(*anaconda.ApiError); ok {
                             if err.StatusCode == 404 {
-                                log.Print("tweet not found. got 404, skipping: %+v", err)
+                                log.Printf("tweet not found. got 404, skipping: %+v", err)
                                 continue
                             }
                         } else {
