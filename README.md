@@ -51,3 +51,11 @@ You can use cron to run the script. Example to run it every day at 4pm:
 DATEVAR=date +%Y-%m-%d
 0 16 * * * ENV_FILE_PATH=/home/prod.env /home/fleets >> /home/cron-$($DATEVAR).log 2>&1
 ```
+
+## Running using Nix
+
+If you have Nix with [Flakes](https://nixos.wiki/wiki/Flakes) enabled, you can run this program directly from GitHub:
+
+```sh
+nix run github:karan/fleets
+```
